@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pronostici Serie A 2026/27 — Modello Poisson</title>
+<style>
+:root{
+  --bg:#0d1420; --card:#16202f; --card2:#1c2940; --line:#2a3a55;
+  --txt:#e8eef7; --mut:#8fa3bd; --acc:#22c55e; --acc2:#3b82f6;
+  --warn:#f59e0b; --bad:#ef4444; --good:#22c55e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--txt);padding:16px;max-width:1100px;margin:0 auto}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
+h1{font-size:1.35rem}
+.badge{background:var(--card2);border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:.8rem;color:var(--mut)}
+.badge.red{color:#fff;background:var(--bad);border-color:var(--bad);font-weight:700}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+h2{font-size:1rem;margin-bottom:12px;color:var(--acc);text-transform:uppercase;letter-spacing:.5px}
+select,input[type=number]{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:9px 10px;font-size:.95rem;width:100%}
+select:focus,input:focus{outline:none;border-color:var(--acc2)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{flex:1;min-width:130px}
+button{background:var(--acc2);border:none;color:#fff;border-radius:8px;padding:9px 14px;font-size:.9rem;cursor:pointer;font-weight:600}
+button:hover{filter:brightness(1.15)}
+button.ghost{background:var(--card2);border:1px solid var(--line)}
+button.small{padding:6px 10px;font-size:.8rem}
+button.gold{background:var(--warn)}
+.chip{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:20px;padding:6px 12px;font-size:.8rem;cursor:pointer}
+.chip:hover{border-color:var(--acc)}
+label{font-size:.78rem;color:var(--mut);display:block;margin-bottom:4px}
+.probbar{margin:10px 0}
+.probbar .lbl{display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px}
+.bar{height:22px;border-radius:6px;overflow:hidden;display:flex;background:var(--card2)}
+.bar div{height:100%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;color:#fff;min-width:34px}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{padding:7px 8px;text-align:center;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-size:.75rem;text-transform:uppercase}
+td:first-child,th:first-child{text-align:left}
+.pill{border-radius:20px;padding:2px 10px;font-size:.78rem;font-weight:700;display:inline-block;min-width:58px}
+.pill.good{background:rgba(34,197,94,.15);color:var(--good)}
+.pill.bad{background:rgba(239,68,68,.15);color:var(--bad)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media(max-width:900px){.grid3{grid-template-columns:1fr}}
+@media(max-width:800px){.grid2{grid-template-columns:1fr}}
+.mut{color:var(--mut);font-size:.8rem}
+.mx td{padding:2px;font-size:.62rem;border:1px solid #101826}
+.mx td.hot{color:#fff;font-weight:700}
+.slip-item{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:.85rem}
+.slip-item button{background:var(--bad);padding:3px 9px;font-size:.75rem}
+.slip-item input{width:80px;padding:4px 6px;font-size:.85rem}
+.stat{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line);font-size:.88rem}
+.stat b{font-variant-numeric:tabular-nums}
+.note{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);border-radius:10px;padding:10px 12px;font-size:.8rem;color:#fcd34d;margin-top:10px}
+.info{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.4);border-radius:10px;padding:10px 12px;font-size:.8rem;color:#93c5fd;margin-top:10px}
+footer{font-size:.75rem;color:var(--mut);margin:16px 0;text-align:center;line-height:1.6}
+.mini{font-size:.7rem;color:var(--mut)}
+.barwrap{background:var(--card2);border-radius:4px;height:12px;width:90px;display:inline-block;vertical-align:middle;overflow:hidden}
+.barwrap i{display:block;height:100%;background:var(--acc2)}
+.barwrap i.d{background:var(--warn)}
+.ready{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px}
+.ready h3{font-size:.9rem;margin-bottom:4px}
+.ready .tag{font-size:.72rem;border-radius:12px;padding:2px 10px;display:inline-block;margin-bottom:8px}
+.tag.g{background:rgba(34,197,94,.15);color:var(--good)}
+.tag.b{background:rgba(59,130,246,.15);color:#93c5fd}
+.tag.o{background:rgba(245,158,11,.15);color:#fcd34d}
+.rline{font-size:.8rem;padding:4px 0;border-bottom:1px dashed var(--line);display:flex;justify-content:space-between;gap:6px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚽ Pronostici Serie A 2026/27</h1>
+  <div>
+    <span class="badge">Modello Poisson–Dixon-Coles</span>
+    <span class="badge" id="databadge">Dati aggiornati al 2 nov 2026 · 10ª giornata</span>
+    <span class="badge red">18+</span>
+  </div>
+</header>
+
+<div class="card">
+  <h2>1 · Scegli la partita</h2>
+  <div class="row" style="align-items:flex-end">
+    <div><label>Squadra di casa</label><select id="home"></select></div>
+    <div><label>Squadra in trasferta</label><select id="away"></select></div>
+    <div style="flex:0"><button class="ghost" onclick="swap()">⇄ Inverti</button></div>
+  </div>
+  <div style="margin-top:12px">
+    <div class="mut" style="margin-bottom:6px">Prossima giornata (11ª, 6–8 nov) — tocca per caricare:</div>
+    <div class="row" id="round" style="gap:6px"></div>
+  </div>
+</div>
+
+<div class="card" id="resultCard">
+  <h2>2 · Probabilità stimate dal modello</h2>
+  <div class="mut" id="lambdas" style="margin-bottom:6px"></div>
+  <div class="probbar"><div class="lbl"><span id="n1"></span><span>1 · Vittoria casa</span></div>
+    <div class="bar"><div id="b1" style="background:#2563eb"></div></div></div>
+  <div class="probbar"><div class="lbl"><span id="nX"></span><span>X · Pareggio</span></div>
+    <div class="bar"><div id="bX" style="background:#64748b"></div></div></div>
+  <div class="probbar"><div class="lbl"><span id="n2"></span><span>2 · Vittoria trasferta</span></div>
+    <div class="bar"><div id="b2" style="background:#dc2626"></div></div></div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div>
+      <h2 style="color:var(--acc2)">Mercati principali</h2>
+      <table id="markets"></table>
+    </div>
+    <div>
+      <h2 style="color:var(--acc2)">Risultati esatti più probabili</h2>
+      <table id="exact"></table>
+      <div class="row" style="align-items:flex-end;margin-top:12px">
+        <div><label>Multifissa: copri i primi N risultati</label>
+          <select id="mfN"><option value="2">2 risultati</option><option value="3" selected>3 risultati</option><option value="4">4 risultati</option><option value="5">5 risultati</option></select></div>
+        <div style="flex:0"><button class="gold" onclick="addMultifissa()">+ Multifissa in schedina</button></div>
+      </div>
+      <div class="mut" id="mfInfo" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div style="margin-top:14px;overflow-x:auto">
+    <h2 style="color:var(--acc2)">Matrice gol (casa ↓ · trasferta →)</h2>
+    <table class="mx" id="matrix"></table>
+  </div>
+</div>
+
+<div class="card">
+  <h2>3 · Confronto con le quote del bookmaker (value betting)</h2>
+  <div class="row" style="align-items:flex-end">
+    <div><label>Bankroll (€)</label><input type="number" id="bank" value="100" min="1" step="10"></div>
+    <div><label>Quota «1»</label><input type="number" id="q1" placeholder="es. 2.40" step="0.01" min="1.01"></div>
+    <div><label>Quota «X»</label><input type="number" id="qX" placeholder="es. 3.30" step="0.01" min="1.01"></div>
+    <div><label>Quota «2»</label><input type="number" id="q2" placeholder="es. 3.00" step="0.01" min="1.01"></div>
+  </div>
+  <table id="value" style="margin-top:12px"></table>
+  <div class="note">💡 Stake suggerito = <b>¼ di Kelly</b>: massimizza la crescita a lungo termine riducendo i rischi. Punta solo dove «Edge» è positivo (quota del bookmaker più alta della probabilità reale stimata).</div>
+</div>
+
+<div class="card">
+  <h2>4 · Le tue schedine</h2>
+  <div class="row" style="align-items:flex-end">
+    <div><label>Esito da giocare</label>
+      <select id="pickSel">
+        <option value="1">1 · Vittoria casa</option>
+        <option value="X">X · Pareggio</option>
+        <option value="2">2 · Vittoria trasferta</option>
+        <option value="1X">Doppia chance 1X</option>
+        <option value="X2">Doppia chance X2</option>
+        <option value="12">Doppia chance 12</option>
+        <option value="Over">Over 2.5 gol</option>
+        <option value="Under">Under 2.5 gol</option>
+        <option value="GG">Goal (GG)</option>
+        <option value="NG">No Goal (NG)</option>
+      </select></div>
+    <div><label>Quota del tuo bookmaker</label><input type="number" id="pickQ" placeholder="es. 1.85" step="0.01" min="1.01"></div>
+    <div style="flex:0"><button onclick="addPick()">+ Aggiungi alla schedina</button></div>
+  </div>
+  <div id="slip" style="margin-top:14px"></div>
+  <div id="slipStats" style="margin-top:10px"></div>
+  <div class="note">⚠️ Ogni evento aggiunto <b>moltiplica</b> il rischio: con 5 eventi al 70% ciascuno la schedina vince solo 1 volta su 6. Il modello mostra la probabilità reale: usala per decidere se la quota offerta vale il rischio.</div>
+</div>
+
+<div class="card">
+  <h2>5 · Schedine pronte per l'11ª giornata (auto-generate dal modello)</h2>
+  <div class="grid3" id="ready"></div>
+  <div class="info">ℹ️ Le quote mostrate sono le <b>quote eque del modello</b> (probabilità inversa): i bookmaker pagano sempre qualcosa in meno, quindi sono il tetto massimo a cui puoi aspirare. Ogni schedina contiene al massimo 5 eventi: con 10 eventi "sicuri" al 75% la vincita reale crollerebbe comunque al 6%. Dopo aver caricato una schedina, <b>modifica ogni quota con quella reale del tuo bookmaker</b>: l'EV si ricalcola da solo. Se l'EV è negativo, il bookmaker paga meno del rischio reale — meglio lasciar stare.</div>
+</div>
+
+<div class="card">
+  <h2>Classifica e forze del modello</h2>
+  <table id="table"></table>
+  <div class="mut" style="margin-top:8px">Barra blu = forza d'attacco (gol fatti vs media campionato). Barra arancio = fragilità difensiva (gol subiti vs media). Valori corretti con fattore di regolarizzazione (10 partite sono ancora poche).</div>
+</div>
+
+<div class="card">
+  <h2>Come funziona il modello</h2>
+  <div class="mut" style="line-height:1.7">
+    1) Stima forza d'attacco e difesa di ogni squadra dai gol fatti/subiti nelle prime 10 giornate, raffrontati alla media campionato (1,59 gol a squadra a partita).<br>
+    2) Corregge per il fattore casa (vantaggio sede ≈ +13%).<br>
+    3) Calcola i gol attesi (λ) delle due squadre e genera la matrice dei punteggi con distribuzione di Poisson, con correzione Dixon-Coles sui punteggi bassi (0-0, 1-0, 0-1, 1-1) che alza leggermente la frequenza dei pareggi.<br>
+    4) Le probabilità dei mercati si ottengono sommando le celle della matrice.<br><br>
+    <b>Limiti onesti:</b> non considera infortuni, squalifiche, turnover per coppe, motivazioni e xG (merito dei gol). Dopo sole 10 giornate le stime sono instabili. Nessun modello batte sistematicamente il margine del bookmaker (~5-8%): questo strumento serve per trovare quote <i>sfavorevoli al bookmaker</i>, non per «prevedere il futuro». Gioca solo somme che puoi perdere.
+  </div>
+</div>
+
+<footer>Strumento statistico a scopo informativo — non è una garanzia di vincita. Se il gioco diventa un problema chiama il numero verde <b>800 186 070</b> (Italia, gratuito).<br>Dati: risultati ufficiali Serie A 2026/27 aggiornati al 2 novembre 2026.</footer>
+
+<script>
+const FALLBACK_TEAMS = {
+ "Lazio":{gf:24,ga:8,w:9,d:1,l:0},"Inter":{gf:26,ga:13,w:8,d:1,l:1},"Roma":{gf:28,ga:10,w:7,d:3,l:0},
+ "Como":{gf:18,ga:8,w:7,d:2,l:1},"Milan":{gf:21,ga:12,w:6,d:3,l:1},"Frosinone":{gf:24,ga:14,w:6,d:2,l:2},
+ "Juventus":{gf:13,ga:10,w:5,d:2,l:3},"Napoli":{gf:17,ga:13,w:4,d:2,l:4},"Bologna":{gf:14,ga:13,w:4,d:2,l:4},
+ "Torino":{gf:14,ga:16,w:4,d:1,l:5},"Genoa":{gf:10,ga:14,w:4,d:1,l:5},"Cagliari":{gf:9,ga:15,w:4,d:1,l:5},
+ "Atalanta":{gf:16,ga:20,w:3,d:2,l:5},"Lecce":{gf:11,ga:21,w:3,d:0,l:7},"Parma":{gf:8,ga:15,w:2,d:2,l:6},
+ "Fiorentina":{gf:15,ga:23,w:2,d:2,l:6},"Sassuolo":{gf:16,ga:26,w:2,d:2,l:6},"Monza":{gf:17,ga:24,w:2,d:1,l:7},
+ "Udinese":{gf:11,ga:23,w:1,d:2,l:7},"Venezia":{gf:6,ga:20,w:1,d:0,l:9}
+};
+let DATA = FALLBACK_TEAMS;
+let TEAMS = Object.keys(DATA);
+const FALLBACK_NEXT = [["Venezia","Udinese"],["Cagliari","Frosinone"],["Torino","Lecce"],["Parma","Bologna"],
+ ["Roma","Sassuolo"],["Napoli","Lazio"],["Genoa","Milan"],["Monza","Atalanta"],["Inter","Como"],["Fiorentina","Juventus"]];
+let NEXT = FALLBACK_NEXT;
+
+const N=10, K=8, HOME=1.13, RHO=-0.05, MAXG=10;
+let lg=0, ATT={}, DEF={};
+function computeRatings(){
+  let totG=0, totM=0;
+  for(const t in DATA){
+    const n=DATA[t].w+DATA[t].d+DATA[t].l;
+    totG+=DATA[t].gf+DATA[t].ga; totM+=2*n;
+  }
+  lg=totG/totM; ATT={}; DEF={};
+  for(const t in DATA){
+    const n=DATA[t].w+DATA[t].d+DATA[t].l;
+    if(!n) continue;
+    const a=(DATA[t].gf/n)/lg, d=(DATA[t].ga/n)/lg;
+    ATT[t]=(n*a+K)/(n+K); DEF[t]=(n*d+K)/(n+K);
+  }
+}
+computeRatings();
+
+const fact=n=>{let f=1;for(let i=2;i<=n;i++)f*=i;return f};
+const pc=(k,l)=>Math.exp(-l)*Math.pow(l,k)/fact(k);
+const fmt=p=>(p*100).toFixed(1)+"%";
+
+let CUR=null;
+const SLIP=[];
+
+function computeP(h,a){
+  const lh=lg*ATT[h]*DEF[a]*HOME;
+  const la=lg*ATT[a]*DEF[h]/HOME;
+  const m=[]; let s=0;
+  for(let i=0;i<=MAXG;i++){m[i]=[];
+    for(let j=0;j<=MAXG;j++){
+      let p=pc(i,lh)*pc(j,la);
+      if(i===0&&j===0)p*=1-lh*la*RHO;
+      else if(i===1&&j===0)p*=1+lh*RHO;
+      else if(i===0&&j===1)p*=1+la*RHO;
+      else if(i===1&&j===1)p*=1-RHO;
+      m[i][j]=Math.max(p,0); s+=m[i][j];
+    }}
+  for(let i=0;i<=MAXG;i++)for(let j=0;j<=MAXG;j++)m[i][j]/=s;
+  const P={h,a,lh,la,m};
+  P.p1=sum(m,(i,j)=>i>j); P.pX=sum(m,(i,j)=>i===j); P.p2=sum(m,(i,j)=>i<j);
+  P.over=sum(m,(i,j)=>i+j>=3); P.under=sum(m,(i,j)=>i+j<=2);
+  P.gg=sum(m,(i,j)=>i>0&&j>0); P.ng=1-P.gg;
+  P.exact=[]; for(let i=0;i<=6;i++)for(let j=0;j<=6;j++)P.exact.push([i,j,m[i][j]]);
+  P.exact.sort((x,y)=>y[2]-x[2]);
+  return P;
+}
+function sum(m,f){let s=0;for(let i=0;i<=MAXG;i++)for(let j=0;j<=MAXG;j++)if(f(i,j))s+=m[i][j];return s}
+
+function compute(h,a){ CUR=computeP(h,a); render(); }
+
+function render(){
+  const P=CUR;
+  document.getElementById('lambdas').textContent =
+    `Gol attesi: ${P.h} ${P.lh.toFixed(2)} — ${P.la.toFixed(2)} ${P.a}`;
+  const w=(id,p)=>{document.getElementById(id).style.width=Math.max(p*100,4)+'%';
+                  document.getElementById(id).textContent=fmt(p)};
+  w('b1',P.p1);w('bX',P.pX);w('b2',P.p2);
+  document.getElementById('n1').textContent=P.h;
+  document.getElementById('nX').textContent=P.h+" – "+P.a;
+  document.getElementById('n2').textContent=P.a;
+
+  const rows=[
+    ["1X (casa o pareggio)",P.p1+P.pX],["12 (nessun pareggio)",P.p1+P.p2],["X2 (pareggio o trasferta)",P.pX+P.p2],
+    ["Over 2.5 gol",P.over],["Under 2.5 gol",P.under],
+    ["Goal (GG)",P.gg],["No Goal (NG)",P.ng],
+    ["Vittoria casa segnando 2+",sum(P.m,(i,j)=>i>=2&&i>j)],["Entrambe segnano + Over 2.5",sum(P.m,(i,j)=>i>0&&j>0&&i+j>=4)]
+  ];
+  document.getElementById('markets').innerHTML =
+    "<tr><th>Mercato</th><th>Probabilità</th><th>Quota equa</th></tr>"+
+    rows.map(r=>`<tr><td>${r[0]}</td><td><b>${fmt(r[1])}</b></td><td class="mut">${(1/r[1]).toFixed(2)}</td></tr>`).join("");
+
+  document.getElementById('exact').innerHTML =
+    "<tr><th>Punteggio</th><th>Probabilità</th><th>Quota equa</th></tr>"+
+    P.exact.slice(0,6).map(e=>`<tr><td><b>${e[0]} - ${e[1]}</b></td><td>${fmt(e[2])}</td><td class="mut">${(1/e[2]).toFixed(2)}</td></tr>`).join("");
+
+  const nMf=parseInt(document.getElementById('mfN').value);
+  const cov=P.exact.slice(0,nMf).reduce((s,e)=>s+e[2],0);
+  const scores=P.exact.slice(0,nMf).map(e=>e[0]+"-"+e[1]).join(" · ");
+  document.getElementById('mfInfo').innerHTML =
+    `Copertura multifissa: <b>${fmt(cov)}</b> — quota equa ${(1/cov).toFixed(2)}<br><span class="mini">Risultati coperti: ${scores}</span>`;
+
+  let mh="<tr><td></td>"; for(let j=0;j<=MAXG;j++)mh+=`<td>${j}</td>`; mh+="</tr>";
+  for(let i=0;i<=MAXG;i++){mh+=`<tr><td><b>${i}</b></td>`;
+    for(let j=0;j<=MAXG;j++){const p=P.m[i][j];
+      const bg=p>0.08?"#16a34a":p>0.04?"#15803d":p>0.02?"#166534":p>0.01?"#14532d":"transparent";
+      mh+=`<td class="${p>0.08?'hot':''}" style="background:${bg}">${p>=0.005?fmt(p):""}</td>`}
+    mh+="</tr>";}
+  document.getElementById('matrix').innerHTML=mh;
+  renderValue(); renderSlip();
+}
+
+function renderValue(){
+  if(!CUR)return;
+  const bank=parseFloat(document.getElementById('bank').value)||0;
+  const items=[["1 · Vittoria "+CUR.h,CUR.p1,'q1'],["X · Pareggio",CUR.pX,'qX'],["2 · Vittoria "+CUR.a,CUR.p2,'q2']];
+  let html="<tr><th>Esito</th><th>Probabilità modello</th><th>Quota</th><th>Probabilità implicita</th><th>Edge</th><th>Stake ¼ Kelly</th></tr>";
+  for(const [lbl,p,qid] of items){
+    const q=parseFloat(document.getElementById(qid).value);
+    if(!q){html+=`<tr><td>${lbl}</td><td>${fmt(p)}</td><td class="mut">—</td><td class="mut">—</td><td class="mut">—</td><td class="mut">—</td></tr>`;continue}
+    const implied=1/q, edge=p*q-1;
+    const kelly=edge>0?(edge/(q-1)):0;
+    const stake=kelly>0?bank*0.25*kelly:0;
+    html+=`<tr><td>${lbl}</td><td>${fmt(p)}</td><td>${q.toFixed(2)}</td><td>${fmt(implied)}</td>
+      <td><span class="pill ${edge>0?'good':'bad'}">${edge>=0?"+":""}${(edge*100).toFixed(1)}%</span></td>
+      <td>${stake>0?"€ "+stake.toFixed(2):"—"}</td></tr>`;
+  }
+  document.getElementById('value').innerHTML=html;
+}
+
+function probOf(pick){
+  const P=CUR;
+  return { "1":P.p1,"X":P.pX,"2":P.p2,"1X":P.p1+P.pX,"X2":P.pX+P.p2,"12":P.p1+P.p2,
+           "Over":P.over,"Under":P.under,"GG":P.gg,"NG":P.ng }[pick];
+}
+const NAMES={"1":"1","X":"X","2":"2","1X":"Doppia chance 1X","X2":"Doppia chance X2","12":"Doppia chance 12","Over":"Over 2.5","Under":"Under 2.5","GG":"Goal","NG":"No Goal"};
+
+function addPick(){
+  const pick=document.getElementById('pickSel').value;
+  const q=parseFloat(document.getElementById('pickQ').value);
+  if(!q||q<=1){alert("Inserisci la quota del tuo bookmaker (es. 1.85)");return}
+  SLIP.push({label:`${CUR.h} – ${CUR.a}`,pick:NAMES[pick],p:probOf(pick),q});
+  document.getElementById('pickQ').value="";
+  renderSlip();
+}
+
+function addMultifissa(){
+  const nMf=parseInt(document.getElementById('mfN').value);
+  const cov=CUR.exact.slice(0,nMf).reduce((s,e)=>s+e[2],0);
+  const scores=CUR.exact.slice(0,nMf).map(e=>e[0]+"-"+e[1]).join(" / ");
+  SLIP.push({label:`${CUR.h} – ${CUR.a}`,pick:`Multifissa ${nMf} (${scores})`,p:cov,q:1/cov});
+  renderSlip();
+  alert("Multifissa aggiunta. Ora modifica la sua quota con quella reale del bookmaker (di solito paga meno della quota equa).");
+}
+
+function setQ(i,val){ const q=parseFloat(val); if(q>1){SLIP[i].q=q; renderSlipStats();} }
+function delPick(i){SLIP.splice(i,1);renderSlip()}
+
+function renderSlip(){
+  const el=document.getElementById('slip');
+  if(SLIP.length===0){el.innerHTML='<div class="mut">Schedina vuota: analizza una partita, oppure carica una delle schedine pronte qui sotto. Puoi anche modificare le quote dopo averle caricate.</div>';document.getElementById('slipStats').innerHTML="";return}
+  el.innerHTML=SLIP.map((s,i)=>`<div class="slip-item">
+      <span style="flex:1"><b>${s.label}</b> · ${s.pick} <span class="mut">(${fmt(s.p)})</span></span>
+      <span class="mut">quota</span><input type="number" step="0.01" min="1.01" value="${s.q.toFixed(2)}" onchange="setQ(${i},this.value)">
+      <button onclick="delPick(${i})">✕</button></div>`).join("");
+  renderSlipStats();
+}
+function renderSlipStats(){
+  if(SLIP.length===0){document.getElementById('slipStats').innerHTML="";return}
+  let cp=1,cq=1;
+  for(const s of SLIP){cp*=s.p;cq*=s.q}
+  const ev=cp*cq-1;
+  document.getElementById('slipStats').innerHTML=`
+    <div class="stat"><span>Eventi</span><b>${SLIP.length}</b></div>
+    <div class="stat"><span>Probabilità di vincita reale</span><b>${fmt(cp)}</b></div>
+    <div class="stat"><span>Quota totale</span><b>${cq.toFixed(2)}</b></div>
+    <div class="stat"><span>Vincita potenziale su 10€</span><b>€ ${(10*cq).toFixed(2)}</b></div>
+    <div class="stat"><span>Valore atteso (EV)</span><b><span class="pill ${ev>0?'good':'bad'}">${ev>=0?"+":""}${(ev*100).toFixed(1)}%</span></b></div>
+    <div style="margin-top:8px"><button class="ghost small" onclick="SLIP.length=0;renderSlip()">Svuota schedina</button></div>`;
+}
+
+/* ---- Schedine pronte ---- */
+function buildReadySlips(){
+  const prudent=[], balanced=[], risky=[];
+  for(const [h,a] of NEXT){
+    const P=computeP(h,a);
+    const dbl=[["1X",P.p1+P.pX],["X2",P.pX+P.p2],["12",P.p1+P.p2]].sort((x,y)=>y[1]-x[1])[0];
+    const one=[["1",P.p1],["X",P.pX],["2",P.p2]].sort((x,y)=>y[1]-x[1])[0];
+    const label=h+" – "+a;
+    if(dbl[1]>=0.70) prudent.push({label,pick:"Doppia chance "+dbl[0],p:dbl[1],q:1/dbl[1]});
+    if(one[1]>=0.48) balanced.push({label,pick:"Esito "+one[0],p:one[1],q:1/one[1]});
+    else if(dbl[1]>=0.62) balanced.push({label,pick:"Doppia chance "+dbl[0],p:dbl[1],q:1/dbl[1]});
+    if(one[1]>=0.38) risky.push({label,pick:"Esito "+one[0],p:one[1],q:1/one[1]});
+  }
+  const top5=l=>l.sort((x,y)=>y.p-x.p).slice(0,5);
+  return [
+    {name:"Schedina PRUDENTE", tag:"Top 5 doppie chance più probabili", cls:"g", items:top5(prudent), min:2},
+    {name:"Schedina EQUILIBRATA", tag:"Top 5 mix esiti / doppie chance", cls:"b", items:top5(balanced), min:2},
+    {name:"Schedina RISCHIO", tag:"Top 5 segni secchi, quote alte", cls:"o", items:top5(risky), min:2}
+  ];
+}
+function readyCard(s){
+  let body, cp=1, cq=1;
+  if(s.items.length < s.min){
+    body='<div class="mut">Questa giornata non offre eventi con questi criteri — il modello preferisce dirti di non giocare.</div>';
+  } else {
+    body=s.items.map(it=>{cp*=it.p;cq*=it.q;
+      return `<div class="rline"><span>${it.label}<br><span class="mut">${it.pick}</span></span><span><b>${fmt(it.p)}</b><br><span class="mut">q. ${it.q.toFixed(2)}</span></span></div>`}).join("")+
+      `<div class="stat" style="margin-top:8px"><span>Probabilità combinata</span><b>${fmt(cp)}</b></div>
+       <div class="stat"><span>Quota totale equa</span><b>${cq.toFixed(2)}</b></div>
+       <div style="margin-top:10px"><button class="small" onclick='loadReady(${JSON.stringify(s.items.map(x=>({label:x.label,pick:x.pick,p:x.p})))})'>Carica nella tua schedina</button></div>`;
+  }
+  return `<div class="ready"><h3>${s.name}</h3><span class="tag ${s.cls}">${s.tag}</span>${body}</div>`;
+}
+function loadReady(items){
+  for(const it of items) SLIP.push({...it, q:1/it.p});
+  renderSlip();
+  window.scrollTo({top:document.getElementById('slip').getBoundingClientRect().top+window.scrollY-120,behavior:'smooth'});
+}
+
+function renderTable(){
+  const rows=TEAMS.map(t=>({t,...DATA[t],att:ATT[t],def:DEF[t],pts:DATA[t].w*3+DATA[t].d}))
+    .sort((a,b)=>b.pts-a.pts||b.gf-a.gf);
+  const maxA=Math.max(...rows.map(r=>r.att)), maxD=Math.max(...rows.map(r=>r.def));
+  document.getElementById('table').innerHTML=
+    "<tr><th>#</th><th>Squadra</th><th>Pti</th><th>G</th><th>GF</th><th>GS</th><th>Attacco</th><th>Difesa (fragile)</th></tr>"+
+    rows.map((r,i)=>`<tr><td>${i+1}</td><td><b>${r.t}</b></td><td>${r.pts}</td><td>${r.w+r.d+r.l}</td>
+      <td>${r.gf}</td><td>${r.ga}</td>
+      <td><span class="barwrap"><i style="width:${(r.att/maxA*100).toFixed(0)}%"></i></span> <span class="mini">${r.att.toFixed(2)}</span></td>
+      <td><span class="barwrap"><i class="d" style="width:${(r.def/maxD*100).toFixed(0)}%"></i></span> <span class="mini">${r.def.toFixed(2)}</span></td></tr>`).join("");
+}
+
+function swap(){
+  const h=document.getElementById('home'), a=document.getElementById('away');
+  const t=h.value; h.value=a.value; a.value=t; update();
+}
+function update(){compute(document.getElementById('home').value, document.getElementById('away').value)}
+
+const hs=document.getElementById('home'), as=document.getElementById('away');
+TEAMS.forEach(t=>{hs.add(new Option(t,t));as.add(new Option(t,t))});
+as.selectedIndex=1;
+function buildChips(){
+  document.getElementById('round').innerHTML=NEXT.map(f=>
+    `<button class="chip small" onclick="setMatch('${f[0]}','${f[1]}')">${f[0]} – ${f[1]}</button>`).join("");
+}
+function setMatch(h,a){hs.value=h;as.value=a;update()}
+['bank','q1','qX','q2'].forEach(id=>document.getElementById(id).addEventListener('input',renderValue));
+document.getElementById('mfN').addEventListener('change',render);
+hs.addEventListener('change',update); as.addEventListener('change',update);
+
+function rebuildSelects(){
+  hs.length=0; as.length=0;
+  TEAMS.forEach(t=>{hs.add(new Option(t,t));as.add(new Option(t,t))});
+  if(TEAMS.length>1) as.selectedIndex=1;
+}
+function start(){
+  rebuildSelects(); buildChips();
+  document.getElementById('ready').innerHTML = buildReadySlips().map(readyCard).join("");
+  renderTable(); update();
+}
+(async()=>{
+  try{
+    const r=await fetch('data.json?ts='+Date.now());
+    if(r.ok){
+      const d=await r.json();
+      if(d && d.teams){
+        DATA=d.teams; NEXT=d.next||FALLBACK_NEXT;
+        TEAMS=Object.keys(DATA);
+        computeRatings();
+        const b=document.getElementById('databadge');
+        if(b && d.lastUpdate) b.textContent='Dati aggiornati al '+d.lastUpdate+' · automatico';
+      }
+    }
+  }catch(e){ /* offline: uso i dati inclusi nel file */ }
+  start();
+})();
+</script>
+</body>
+</html>
